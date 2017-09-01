@@ -1,6 +1,7 @@
 use regex::Regex;
 use dataset;
 use woothee::VALUE_UNKNOWN;
+use std::borrow::Cow;
 
 lazy_static! {
     static ref RX_CHROME_PATTERN: Regex = Regex::new(r"(?:Chrome|CrMo|CriOS)/([.0-9]+)").unwrap();
@@ -57,9 +58,9 @@ pub struct WootheeResult<'a> {
     pub name: &'a str,
     pub category: &'a str,
     pub os: &'a str,
-    pub os_version: String,
+    pub os_version: Cow<'a, str>,
     pub browser_type: &'a str,
-    pub version: String,
+    pub version: Cow<'a, str>,
     pub vendor: &'a str,
 }
 
@@ -69,9 +70,9 @@ impl<'a> WootheeResult<'a> {
             name: VALUE_UNKNOWN,
             category: VALUE_UNKNOWN,
             os: VALUE_UNKNOWN,
-            os_version: VALUE_UNKNOWN.to_string(),
+            os_version: VALUE_UNKNOWN.into(),
             browser_type: VALUE_UNKNOWN,
-            version: VALUE_UNKNOWN.to_string(),
+            version: VALUE_UNKNOWN.into(),
             vendor: VALUE_UNKNOWN,
         }
     }
@@ -466,25 +467,26 @@ impl Parser {
             return false;
         }
 
-        let mut version = VALUE_UNKNOWN;
         let re_msie_caps = RX_MSIE_PATTERN.captures(agent);
         let re_trident_caps = RX_TRIDENT_PATTERN.captures(agent);
         let re_trident_ver_caps = RX_TRIDENT_VERSION_PATTERN.captures(agent);
         let re_ie_mobile_caps = RX_IEMOBILE_PATTERN.captures(agent);
 
-        if re_msie_caps.is_some() {
-            version = re_msie_caps.unwrap().get(1).unwrap().as_str();
+        let version = if re_msie_caps.is_some() {
+            re_msie_caps.unwrap().get(1).unwrap().as_str().to_string()
         } else if re_trident_caps.is_some() && re_trident_ver_caps.is_some() {
-            version = re_trident_ver_caps.unwrap().get(1).unwrap().as_str();
+            re_trident_ver_caps.unwrap().get(1).unwrap().as_str().to_string()
         } else if re_ie_mobile_caps.is_some() {
-            version = re_ie_mobile_caps.unwrap().get(1).unwrap().as_str();
-        }
+            re_ie_mobile_caps.unwrap().get(1).unwrap().as_str().to_string()
+        } else {
+            VALUE_UNKNOWN.to_string()
+        };
 
         if !self.populate_dataset(result, "MSIE") {
             return false;
         }
 
-        result.version = version.to_string();
+        result.version = version.into();
 
         true
     }
@@ -504,7 +506,7 @@ impl Parser {
     fn challenge_vivaldi<'b>(&'b self, agent: &str, result: &mut WootheeResult<'b>) -> bool {
         match RX_VIVALDI_PATTERN.captures(agent) {
             Some(caps) => {
-                result.version = caps.get(1).unwrap().as_str().to_string();
+                result.version = caps.get(1).unwrap().as_str().to_string().into();
             }
             None => {
                 return false;
@@ -521,7 +523,7 @@ impl Parser {
     fn challenge_firefox_ios<'b>(&'b self, agent: &str, result: &mut WootheeResult<'b>) -> bool {
         match RX_FIREFOX_IOS_PATTERN.captures(agent) {
             Some(caps) => {
-                result.version = caps.get(1).unwrap().as_str().to_string();
+                result.version = caps.get(1).unwrap().as_str().to_string().into();
             }
             None => {
                 return false;
@@ -554,7 +556,7 @@ impl Parser {
                     return false;
                 }
                 if !version.is_empty() {
-                    result.version = version.to_string();
+                    result.version = version.to_string().into();
                 }
                 return true;
             }
@@ -568,7 +570,7 @@ impl Parser {
                 None => "",
             };
             if !version.is_empty() {
-                result.version = version.to_string();
+                result.version = version.to_string().into();
             }
             return true;
         }
@@ -582,7 +584,7 @@ impl Parser {
             return false;
         }
 
-        result.version = version.to_string();
+        result.version = version.to_string().into();
 
         true
     }
@@ -601,7 +603,7 @@ impl Parser {
             return false;
         }
 
-        result.version = version.to_string();
+        result.version = version.to_string().into();
 
         true
     }
@@ -625,7 +627,7 @@ impl Parser {
             return false;
         }
 
-        result.version = version.to_string();
+        result.version = version.to_string().into();
 
         true
     }
@@ -641,7 +643,7 @@ impl Parser {
         };
 
         if agent.contains("Chrome") && agent.contains("wv") {
-            result.version = version.to_string();
+            result.version = version.to_string().into();
             self.populate_dataset(result, "Webview");
             return true;
         }
@@ -659,7 +661,7 @@ impl Parser {
             None => "",
         };
         if !version.is_empty() {
-            result.version = version.to_string();
+            result.version = version.to_string().into();
         }
 
         true
@@ -682,7 +684,7 @@ impl Parser {
         if !self.populate_dataset(result, "docomo") {
             return false;
         }
-        result.version = version.to_string();
+        result.version = version.to_string().into();
 
         true
     }
@@ -701,7 +703,7 @@ impl Parser {
         if !self.populate_dataset(result, "au") {
             return false;
         }
-        result.version = version.to_string();
+        result.version = version.to_string().into();
 
         true
     }
@@ -720,7 +722,7 @@ impl Parser {
         if !self.populate_dataset(result, "SoftBank") {
             return false;
         }
-        result.version = version.to_string();
+        result.version = version.to_string().into();
 
         true
     }
@@ -739,7 +741,7 @@ impl Parser {
         if !self.populate_dataset(result, "willcom") {
             return false;
         }
-        result.version = version.to_string();
+        result.version = version.to_string().into();
 
         true
     }
@@ -752,7 +754,7 @@ impl Parser {
 
             let caps = RX_JIG_PATTERN.captures(agent);
             if caps.is_some() {
-                result.version = caps.unwrap().get(1).unwrap().as_str().to_string();
+                result.version = caps.unwrap().get(1).unwrap().as_str().to_string().into();
             }
             return true;
         }
@@ -775,7 +777,7 @@ impl Parser {
             if !self.populate_dataset(result, "MobileTranscoder") {
                 return false;
             }
-            result.version = "Hatena".to_string();
+            result.version = "Hatena".to_string().into();
             return true;
         }
 
@@ -783,7 +785,7 @@ impl Parser {
             if !self.populate_dataset(result, "MobileTranscoder") {
                 return false;
             }
-            result.version = "livedoor".to_string();
+            result.version = "livedoor".to_string().into();
             return true;
         }
 
@@ -791,30 +793,30 @@ impl Parser {
     }
 
     fn challenge_playstation<'b>(&'b self, agent: &str, result: &mut WootheeResult<'b>) -> bool {
-        let mut os_version = "";
+        let mut os_version = "".to_string();
 
         let d = if agent.contains("PSP (PlayStation Portable)") {
             os_version = match RX_PSP_OS_VERSION.captures(agent) {
-                Some(caps) => caps.get(1).unwrap().as_str(),
-                None => "",
+                Some(caps) => caps.get(1).unwrap().as_str().to_string(),
+                None => "".to_string(),
             };
             self.lookup_dataset("PSP")
         } else if agent.contains("PlayStation Vita") {
             os_version = match RX_PSVITA_OS_VERSION.captures(agent) {
-                Some(caps) => caps.get(1).unwrap().as_str(),
-                None => "",
+                Some(caps) => caps.get(1).unwrap().as_str().to_string(),
+                None => "".to_string(),
             };
             self.lookup_dataset("PSVita")
         } else if agent.contains("PLAYSTATION 3 ") || agent.contains("PLAYSTATION 3;") {
             os_version = match RX_PS3_OS_VERSION.captures(agent) {
-                Some(caps) => caps.get(1).unwrap().as_str(),
-                None => "",
+                Some(caps) => caps.get(1).unwrap().as_str().to_string(),
+                None => "".to_string(),
             };
             self.lookup_dataset("PS3")
         } else if agent.contains("PlayStation 4 ") {
             os_version = match RX_PS4_OS_VERSION.captures(agent) {
-                Some(caps) => caps.get(1).unwrap().as_str(),
-                None => "",
+                Some(caps) => caps.get(1).unwrap().as_str().to_string(),
+                None => "".to_string(),
             };
             self.lookup_dataset("PS4")
         } else {
@@ -829,7 +831,7 @@ impl Parser {
         result.populate_with(data);
 
         if !os_version.is_empty() {
-            result.os_version = os_version.to_string();
+            result.os_version = os_version.into();
         }
 
         true
@@ -888,8 +890,8 @@ impl Parser {
             return true;
         }
 
-        let mut version = caps.unwrap().get(1).unwrap().as_str();
-        w = match version {
+        let mut version = caps.unwrap().get(1).unwrap().as_str().to_string();
+        w = match version.as_str() {
             "NT 10.0" => self.lookup_dataset("Win10"),
             "NT 6.3" => self.lookup_dataset("Win8.1"),
             "NT 6.2" => self.lookup_dataset("Win8"),
@@ -902,9 +904,10 @@ impl Parser {
             "95" => self.lookup_dataset("Win95"),
             "CE" => self.lookup_dataset("WinCE"),
             _ => {
-                let caps = RX_WIN_PHONE.captures(version);
+                let v = version.clone();
+                let caps = RX_WIN_PHONE.captures(v.as_str());
                 if caps.is_some() {
-                    version = caps.unwrap().get(1).unwrap().as_str();
+                    version = caps.unwrap().get(1).unwrap().as_str().to_string();
                     self.lookup_dataset("WinPhone")
                 } else {
                     None
@@ -920,7 +923,7 @@ impl Parser {
         result.category = win.category;
         result.os = win.name;
         if !version.is_empty() {
-            result.os_version = version.to_string();
+            result.os_version = version.into();
         }
 
         true
@@ -967,7 +970,7 @@ impl Parser {
         result.category = data.category;
         result.os = data.name;
         if !version.is_empty() {
-            result.os_version = version.to_string();
+            result.os_version = version.into();
         }
 
         true
@@ -997,14 +1000,14 @@ impl Parser {
         result.category = data.category;
         result.os = data.name;
         if !os_version.is_empty() {
-            result.os_version = os_version;
+            result.os_version = os_version.into();
         }
 
         true
     }
 
     fn challenge_smartphone<'b>(&'b self, agent: &str, result: &mut WootheeResult<'b>) -> bool {
-        let mut os_version = "";
+        let mut os_version = "".to_string();
 
         let mut d = if agent.contains("iPhone") {
             self.lookup_dataset("iPhone")
@@ -1019,14 +1022,14 @@ impl Parser {
         } else if agent.contains("BB10") {
             let caps = RX_BLACKBERRY10_OS_VERSION.captures(agent);
             if caps.is_some() {
-                os_version = caps.unwrap().get(1).unwrap().as_str();
+                os_version = caps.unwrap().get(1).unwrap().as_str().to_string();
             }
-            result.version = VALUE_UNKNOWN.to_string();
+            result.version = VALUE_UNKNOWN.into();
             self.lookup_dataset("BlackBerry10")
         } else if agent.contains("BlackBerry") {
             let caps = RX_BLACKBERRY_OS_VERSION.captures(agent);
             if caps.is_some() {
-                os_version = caps.unwrap().get(1).unwrap().as_str();
+                os_version = caps.unwrap().get(1).unwrap().as_str().to_string();
             }
             self.lookup_dataset("BlackBerry")
         } else {
@@ -1048,7 +1051,7 @@ impl Parser {
                 let c = caps.unwrap();
                 if c.len() > 1 {
                     d = self.lookup_dataset("FirefoxOS");
-                    os_version = c.get(1).unwrap().as_str();
+                    os_version = c.get(1).unwrap().as_str().to_string();
                 }
             }
         }
@@ -1061,7 +1064,7 @@ impl Parser {
         result.category = data.category;
         result.os = data.name;
         if !os_version.is_empty() {
-            result.os_version = os_version.to_string();
+            result.os_version = os_version.into();
         }
 
         true
@@ -1079,7 +1082,7 @@ impl Parser {
                 let data = d.unwrap();
                 result.category = data.category;
                 result.os = data.os;
-                result.version = term.to_string();
+                result.version = term.to_string().into();
                 return true;
             }
         }
@@ -1095,7 +1098,7 @@ impl Parser {
                 let data = d.unwrap();
                 result.category = data.category;
                 result.os = data.os;
-                result.version = term.to_string();
+                result.version = term.to_string().into();
                 return true;
             }
         }
@@ -1115,14 +1118,14 @@ impl Parser {
             if !self.populate_dataset(result, "MobileTranscoder") {
                 return false;
             }
-            result.version = "Google".to_string();
+            result.version = "Google".into();
         }
 
         if agent.contains("Naver Transcoder") {
             if !self.populate_dataset(result, "MobileTranscoder") {
                 return false;
             }
-            result.version = "Naver".to_string();
+            result.version = "Naver".into();
         }
 
         false
@@ -1179,7 +1182,7 @@ impl Parser {
         }
         let win = w.unwrap();
 
-        result.version = version.to_string();
+        result.version = version.to_string().into();
         result.category = win.category;
         result.os = win.name;
 
@@ -1187,7 +1190,6 @@ impl Parser {
     }
 
     fn challenge_http_library<'b>(&'b self, agent: &str, result: &mut WootheeResult<'b>) -> bool {
-        // TODO: wip
         let mut version = "";
 
         if RX_HTTP_CLIENT.is_match(agent) || RX_HTTP_CLIENT_OTHER.is_match(agent) ||
@@ -1216,7 +1218,7 @@ impl Parser {
         if !self.populate_dataset(result, "HTTPLibrary") {
             return false;
         }
-        result.version = version.to_string();
+        result.version = version.into();
 
         true
     }
@@ -1268,24 +1270,24 @@ impl Parser {
 
     fn challenge_misc_os<'b>(&'b self, agent: &str, result: &mut WootheeResult<'b>) -> bool {
         let d = if agent.contains("(Win98;") {
-            result.os_version = "98".to_string();
+            result.os_version = "98".into();
             self.lookup_dataset("Win98")
         } else if agent.contains("Macintosh; U; PPC;") || agent.contains("Mac_PowerPC") {
             let caps = RX_PPC_OS_VERSION.captures(agent);
             if caps.is_some() {
-                result.os_version = caps.unwrap().get(1).unwrap().as_str().to_string();
+                result.os_version = caps.unwrap().get(1).unwrap().as_str().to_string().into();
             }
             self.lookup_dataset("MacOS")
         } else if agent.contains("X11; FreeBSD ") {
             let caps = RX_FREEBSD_OS_VERSION.captures(agent);
             if caps.is_some() {
-                result.os_version = caps.unwrap().get(1).unwrap().as_str().to_string();
+                result.os_version = caps.unwrap().get(1).unwrap().as_str().to_string().into();
             }
             self.lookup_dataset("BSD")
         } else if agent.contains("X11; CrOS ") {
             let caps = RX_CHROMEOS_OS_VERSION.captures(agent);
             if caps.is_some() {
-                result.os_version = caps.unwrap().get(1).unwrap().as_str().to_string();
+                result.os_version = caps.unwrap().get(1).unwrap().as_str().to_string().into();
             }
             self.lookup_dataset("ChromeOS")
         } else {
